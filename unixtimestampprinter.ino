@@ -22,9 +22,9 @@ const int printer_char_start = 5;
 const int printer_char_end = 7;
 const int printer_char_reset = 6;
 static int printer_position;
-const int printer_motor_speed = 64;
+const int printer_motor_speed = 84;
 
-const char printer_chars[] = "#123456789-,.";
+const char printer_chars[15] = "#1234567890-,.";
 // second row is " +x:#*ENMC= -%"
 
 // print button
@@ -33,7 +33,7 @@ static int time_since_print = 0;
 const int time_between_prints = 5000; // milliseconds
 
 // timekeeping
-static unsigned int seconds = 1441121804; // roughly
+static long int seconds = 1441121804; // roughly
 
 void setup() {
   pinMode(printer_magnet, OUTPUT);
@@ -43,15 +43,16 @@ void setup() {
   pinMode(printer_char_end, INPUT);
   pinMode(printer_char_reset, INPUT);
   pinMode(print_timestamp, INPUT);
+  pinMode(13, OUTPUT);
 
 
-  analogWrite(printer_motor, 0);
+  analogWrite(printer_motor, printer_motor_speed);
   digitalWrite(printer_magnet, HIGH);
   delay(300);
   analogWrite(printer_motor, 255);
   digitalWrite(printer_magnet, LOW);
   Serial.begin(9600);
-  
+
   delay(200);
   //printTimeStamp();
 }
@@ -73,9 +74,11 @@ void printTimeStamp() {
     return;
   }
   time_since_print = millis() + time_between_prints;
-  char str_seconds[18];
-  sprintf(str_seconds, "%d", seconds);
-  int *string_positions;
+  String tmp = String(seconds);
+  char str_seconds[18] = "";
+  tmp.toCharArray(str_seconds, 18);
+  Serial.println(str_seconds);
+  int *string_positions = {};
   string_positions = printerPositions(str_seconds);
 
   analogWrite(printer_motor, printer_motor_speed);
@@ -86,8 +89,13 @@ void printTimeStamp() {
   if(debug) {
     Serial.println(sizeof(string_positions));
   }
-  for(int i = sizeof(string_positions); i > 0; i--) {
-    printChar(string_positions[i]);
+  for (int i = sizeof(string_positions); i > 0; i--) {
+    if (string_positions[i]) {
+      printChar(string_positions[i]);
+      if (i > 0) {
+        digitalWrite(printer_magnet, LOW);
+      }
+    }
   }
 
   // for a line break we need to wait for a little longer before we release the magnet
@@ -123,16 +131,23 @@ void printerSeekNextChar() {
 }
 
 void printChar(int position) {
+  if (position < 0 || position > 13) {
+    Serial.print("Won't print ");
+    Serial.println(position);
+    return;
+  }
   digitalWrite(printer_magnet, LOW);
   do {
     printerSeekNextChar();
   } while(position != printer_position);
 
   // actually print the char
+  digitalWrite(printer_magnet, HIGH);
+  int timer = 0;
   do {
-    digitalWrite(printer_magnet, HIGH);
     delay(1);
-  } while(printer_char_end == LOW);
+    timer++;
+  } while (timer < 1000 && printer_char_end == LOW);
 }
 
 void loop() {
